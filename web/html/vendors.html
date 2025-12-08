@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+{{ template "common/header" . }}
+<body class="sidebar-mini">
+<div class="wrapper">
+    {{ template "common/navbar" . }}
+    {{ template "common/sidebar" . }}
+
+    <div class="content-wrapper">
+        <section class="content-header">
+            <div class="container-fluid">
+                <div class="row mb-2">
+                    <div class="col-sm-6">
+                        <h1>
+                            <i class="fas fa-users-cog"></i>
+                            {{ i18n "Vendor Management" }}
+                        </h1>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="content">
+            <div class="container-fluid">
+                <!-- Create Vendor Card -->
+                <div class="card card-primary">
+                    <div class="card-header">
+                        <h3 class="card-title">
+                            <i class="fas fa-user-plus"></i>
+                            {{ i18n "Create New Vendor" }}
+                        </h3>
+                    </div>
+                    <div class="card-body">
+                        <form id="create-vendor-form">
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <div class="form-group">
+                                        <label>{{ i18n "Username" }}</label>
+                                        <input type="text" class="form-control" id="vendor-username" required minlength="3">
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="form-group">
+                                        <label>{{ i18n "Password" }}</label>
+                                        <input type="password" class="form-control" id="vendor-password" required minlength="4">
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="form-group">
+                                        <label>{{ i18n "Allowed Inbounds" }}</label>
+                                        <select class="form-control select2" id="vendor-inbounds" multiple="multiple" style="width: 100%;">
+                                            <!-- Will be populated via AJAX -->
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-plus"></i>
+                                {{ i18n "Create Vendor" }}
+                            </button>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Vendors List Card -->
+                <div class="card card-info">
+                    <div class="card-header">
+                        <h3 class="card-title">
+                            <i class="fas fa-list"></i>
+                            {{ i18n "Vendor List" }}
+                        </h3>
+                        <div class="card-tools">
+                            <button type="button" class="btn btn-sm btn-success" id="refresh-vendors">
+                                <i class="fas fa-sync"></i>
+                                {{ i18n "Refresh" }}
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body table-responsive p-0">
+                        <table class="table table-hover text-nowrap" id="vendors-table">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>{{ i18n "Username" }}</th>
+                                    <th>{{ i18n "Role" }}</th>
+                                    <th>{{ i18n "Inbounds" }}</th>
+                                    <th>{{ i18n "Actions" }}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Will be populated via AJAX -->
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="overlay" id="vendors-loading" style="display: none;">
+                        <i class="fas fa-3x fa-sync-alt fa-spin"></i>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    {{ template "common/footer" . }}
+</div>
+
+<!-- Manage Inbound Access Modal -->
+<div class="modal fade" id="manage-inbounds-modal">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-info">
+                <h4 class="modal-title">
+                    <i class="fas fa-network-wired"></i>
+                    {{ i18n "Manage Inbound Access" }}
+                </h4>
+                <button type="button" class="close" data-dismiss="modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="current-vendor-id">
+                <h5 id="current-vendor-name"></h5>
+                <hr>
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6>{{ i18n "Grant Access" }}</h6>
+                        <select class="form-control" id="grant-inbound-select">
+                            <option value="">-- {{ i18n "Select Inbound" }} --</option>
+                        </select>
+                        <button class="btn btn-success btn-sm mt-2" id="grant-access-btn">
+                            <i class="fas fa-check"></i> {{ i18n "Grant" }}
+                        </button>
+                    </div>
+                    <div class="col-md-6">
+                        <h6>{{ i18n "Current Access" }}</h6>
+                        <ul class="list-group" id="vendor-inbounds-list">
+                            <!-- Will be populated dynamically -->
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+$(function () {
+    // Initialize Select2
+    $('.select2').select2({
+        theme: 'bootstrap4',
+        placeholder: 'Select inbounds'
+    });
+
+    // Load all inbounds for dropdown
+    function loadInbounds() {
+        $.ajax({
+            url: '{{ .base_path }}panel/api/inbounds/list',
+            type: 'GET',
+            success: function(response) {
+                if (response.success && response.obj) {
+                    const inbounds = response.obj;
+                    $('#vendor-inbounds, #grant-inbound-select').empty();
+                    $('#grant-inbound-select').append('<option value="">-- Select Inbound --</option>');
+                    
+                    inbounds.forEach(inbound => {
+                        $('#vendor-inbounds').append(
+                            `<option value="${inbound.id}">${inbound.remark} (Port: ${inbound.port})</option>`
+                        );
+                        $('#grant-inbound-select').append(
+                            `<option value="${inbound.id}">${inbound.remark} (Port: ${inbound.port})</option>`
+                        );
+                    });
+                }
+            },
+            error: function() {
+                toastr.error('Failed to load inbounds');
+            }
+        });
+    }
+
+    // Load vendors
+    function loadVendors() {
+        $('#vendors-loading').show();
+        $.ajax({
+            url: '{{ .base_path }}vendor/list',
+            type: 'GET',
+            success: function(vendors) {
+                $('#vendors-loading').hide();
+                const tbody = $('#vendors-table tbody');
+                tbody.empty();
+
+                if (!vendors || vendors.length === 0) {
+                    tbody.append('<tr><td colspan="5" class="text-center">No vendors found</td></tr>');
+                    return;
+                }
+
+                vendors.forEach(vendor => {
+                    const inboundsBadges = vendor.inbounds.map(id => 
+                        `<span class="badge badge-primary">${id}</span>`
+                    ).join(' ');
+
+                    tbody.append(`
+                        <tr>
+                            <td>${vendor.id}</td>
+                            <td><strong>${vendor.username}</strong></td>
+                            <td><span class="badge badge-success">${vendor.role}</span></td>
+                            <td>${inboundsBadges || '<span class="text-muted">None</span>'}</td>
+                            <td>
+                                <button class="btn btn-sm btn-info manage-inbounds" data-id="${vendor.id}" data-username="${vendor.username}">
+                                    <i class="fas fa-network-wired"></i>
+                                </button>
+                                <button class="btn btn-sm btn-danger delete-vendor" data-id="${vendor.id}" data-username="${vendor.username}">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    `);
+                });
+            },
+            error: function() {
+                $('#vendors-loading').hide();
+                toastr.error('Failed to load vendors');
+            }
+        });
+    }
+
+    // Create vendor
+    $('#create-vendor-form').submit(function(e) {
+        e.preventDefault();
+        
+        const username = $('#vendor-username').val();
+        const password = $('#vendor-password').val();
+        const inboundIds = $('#vendor-inbounds').val().map(id => parseInt(id));
+
+        $.ajax({
+            url: '{{ .base_path }}vendor/create',
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({
+                username: username,
+                password: password,
+                inboundIds: inboundIds
+            }),
+            success: function(response) {
+                if (response.success) {
+                    toastr.success('Vendor created successfully');
+                    $('#create-vendor-form')[0].reset();
+                    $('#vendor-inbounds').val(null).trigger('change');
+                    loadVendors();
+                } else {
+                    toastr.error(response.msg || 'Failed to create vendor');
+                }
+            },
+            error: function(xhr) {
+                toastr.error(xhr.responseJSON?.msg || 'Failed to create vendor');
+            }
+        });
+    });
+
+    // Manage inbounds
+    $(document).on('click', '.manage-inbounds', function() {
+        const vendorId = $(this).data('id');
+        const vendorUsername = $(this).data('username');
+        
+        $('#current-vendor-id').val(vendorId);
+        $('#current-vendor-name').text('Vendor: ' + vendorUsername);
+        
+        // Load vendor's current inbounds
+        $.ajax({
+            url: `{{ .base_path }}vendor/inbounds/${vendorId}`,
+            type: 'GET',
+            success: function(inbounds) {
+                const list = $('#vendor-inbounds-list');
+                list.empty();
+                
+                if (!inbounds || inbounds.length === 0) {
+                    list.append('<li class="list-group-item text-muted">No access granted</li>');
+                } else {
+                    inbounds.forEach(id => {
+                        list.append(`
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                Inbound #${id}
+                                <button class="btn btn-danger btn-sm revoke-access" data-inbound-id="${id}">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </li>
+                        `);
+                    });
+                }
+                
+                $('#manage-inbounds-modal').modal('show');
+            },
+            error: function() {
+                toastr.error('Failed to load vendor inbounds');
+            }
+        });
+    });
+
+    // Grant access
+    $('#grant-access-btn').click(function() {
+        const vendorId = $('#current-vendor-id').val();
+        const inboundId = $('#grant-inbound-select').val();
+        
+        if (!inboundId) {
+            toastr.warning('Please select an inbound');
+            return;
+        }
+
+        $.ajax({
+            url: '{{ .base_path }}vendor/grant',
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({
+                vendorId: parseInt(vendorId),
+                inboundId: parseInt(inboundId)
+            }),
+            success: function(response) {
+                if (response.success) {
+                    toastr.success('Access granted successfully');
+                    $('#manage-inbounds-modal').modal('hide');
+                    loadVendors();
+                } else {
+                    toastr.error(response.msg || 'Failed to grant access');
+                }
+            },
+            error: function(xhr) {
+                toastr.error(xhr.responseJSON?.msg || 'Failed to grant access');
+            }
+        });
+    });
+
+    // Revoke access
+    $(document).on('click', '.revoke-access', function() {
+        const vendorId = $('#current-vendor-id').val();
+        const inboundId = $(this).data('inbound-id');
+
+        if (!confirm('Revoke access to this inbound?')) return;
+
+        $.ajax({
+            url: '{{ .base_path }}vendor/revoke',
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({
+                vendorId: parseInt(vendorId),
+                inboundId: parseInt(inboundId)
+            }),
+            success: function(response) {
+                if (response.success) {
+                    toastr.success('Access revoked successfully');
+                    $('#manage-inbounds-modal').modal('hide');
+                    loadVendors();
+                } else {
+                    toastr.error(response.msg || 'Failed to revoke access');
+                }
+            },
+            error: function(xhr) {
+                toastr.error(xhr.responseJSON?.msg || 'Failed to revoke access');
+            }
+        });
+    });
+
+    // Delete vendor
+    $(document).on('click', '.delete-vendor', function() {
+        const vendorId = $(this).data('id');
+        const vendorUsername = $(this).data('username');
+
+        if (!confirm(`Delete vendor "${vendorUsername}"? This will remove all their clients!`)) {
+            return;
+        }
+
+        $.ajax({
+            url: `{{ .base_path }}vendor/delete/${vendorId}`,
+            type: 'DELETE',
+            success: function(response) {
+                if (response.success) {
+                    toastr.success('Vendor deleted successfully');
+                    loadVendors();
+                } else {
+                    toastr.error(response.msg || 'Failed to delete vendor');
+                }
+            },
+            error: function(xhr) {
+                toastr.error(xhr.responseJSON?.msg || 'Failed to delete vendor');
+            }
+        });
+    });
+
+    // Refresh button
+    $('#refresh-vendors').click(function() {
+        loadVendors();
+    });
+
+    // Initialize
+    loadInbounds();
+    loadVendors();
+});
+</script>
+
+</body>
+</html>
