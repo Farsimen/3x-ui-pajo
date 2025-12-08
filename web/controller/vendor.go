@@ -7,6 +7,7 @@ import (
 	"github.com/mhsanaei/3x-ui/v2/logger"
 	"github.com/mhsanaei/3x-ui/v2/web/service"
 	"github.com/mhsanaei/3x-ui/v2/web/session"
+	"github.com/mhsanaei/3x-ui/v2/util/crypto"
 
 	"github.com/gin-gonic/gin"
 )
@@ -15,7 +16,6 @@ type VendorController struct {
 	BaseController
 	
 	rbacService service.RBACService
-	userService service.UserService
 }
 
 func NewVendorController(g *gin.RouterGroup) *VendorController {
@@ -68,13 +68,21 @@ func (a *VendorController) createVendor(c *gin.Context) {
 		return
 	}
 
-	// Create user account
-	newUser := &model.User{
-		Username: req.Username,
-		Password: req.Password,
+	// Hash password
+	hashedPassword, err := crypto.HashPasswordAsBcrypt(req.Password)
+	if err != nil {
+		jsonMsg(c, "Failed to hash password: "+err.Error(), nil)
+		return
 	}
 
-	err = a.userService.AddUser(newUser)
+	// Create user account directly in database
+	db := database.GetDB()
+	newUser := &model.User{
+		Username: req.Username,
+		Password: hashedPassword,
+	}
+
+	err = db.Create(newUser).Error
 	if err != nil {
 		jsonMsg(c, "Failed to create user: "+err.Error(), nil)
 		return
@@ -84,7 +92,7 @@ func (a *VendorController) createVendor(c *gin.Context) {
 	err = a.rbacService.AssignRole(newUser.Id, "vendor")
 	if err != nil {
 		// Rollback user creation
-		a.userService.DeleteUser(newUser.Id)
+		db.Delete(newUser)
 		jsonMsg(c, "Failed to assign vendor role: "+err.Error(), nil)
 		return
 	}
@@ -286,8 +294,9 @@ func (a *VendorController) deleteVendor(c *gin.Context) {
 		return
 	}
 
-	// Delete user (this will cascade delete role and access records)
-	err = a.userService.DeleteUser(vendorID)
+	// Delete user directly from database (will cascade delete roles and accesses)
+	db := database.GetDB()
+	err = db.Delete(&model.User{}, vendorID).Error
 	if err != nil {
 		jsonMsg(c, "Failed to delete vendor: "+err.Error(), nil)
 		return
