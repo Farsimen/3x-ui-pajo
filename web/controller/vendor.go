@@ -6,11 +6,14 @@ import (
 	"x-ui/database/model"
 	"x-ui/logger"
 	"x-ui/web/service"
+	"x-ui/web/session"
 
 	"github.com/gin-gonic/gin"
 )
 
 type VendorController struct {
+	BaseController
+	
 	rbacService service.RBACService
 	userService service.UserService
 }
@@ -23,6 +26,7 @@ func NewVendorController(g *gin.RouterGroup) *VendorController {
 
 func (a *VendorController) initRouter(g *gin.RouterGroup) {
 	g = g.Group("/vendor")
+	g.Use(a.checkLogin)
 
 	// Vendor management endpoints (admin only)
 	g.POST("/create", a.createVendor)
@@ -36,19 +40,18 @@ func (a *VendorController) initRouter(g *gin.RouterGroup) {
 // createVendor creates a new vendor account and assigns inbounds
 func (a *VendorController) createVendor(c *gin.Context) {
 	// Check if user is admin
-	session := a.getSession(c)
-	if session == nil {
+	if !session.IsLogin(c) {
 		jsonMsg(c, "Unauthorized", nil)
 		return
 	}
 
-	userID := session.Get("id")
-	if userID == nil {
+	user := session.GetLoginUser(c)
+	if user == nil {
 		jsonMsg(c, "Invalid session", nil)
 		return
 	}
 
-	isAdmin, err := a.rbacService.IsAdmin(userID.(int))
+	isAdmin, err := a.rbacService.IsAdmin(user.Id)
 	if err != nil || !isAdmin {
 		jsonMsg(c, "Admin access required", nil)
 		return
@@ -66,29 +69,29 @@ func (a *VendorController) createVendor(c *gin.Context) {
 	}
 
 	// Create user account
-	user := &model.User{
+	newUser := &model.User{
 		Username: req.Username,
 		Password: req.Password,
 	}
 
-	err = a.userService.AddUser(user)
+	err = a.userService.AddUser(newUser)
 	if err != nil {
 		jsonMsg(c, "Failed to create user: "+err.Error(), nil)
 		return
 	}
 
 	// Assign vendor role
-	err = a.rbacService.AssignRole(user.Id, "vendor")
+	err = a.rbacService.AssignRole(newUser.Id, "vendor")
 	if err != nil {
 		// Rollback user creation
-		a.userService.DeleteUser(user.Id)
+		a.userService.DeleteUser(newUser.Id)
 		jsonMsg(c, "Failed to assign vendor role: "+err.Error(), nil)
 		return
 	}
 
 	// Grant access to inbounds
 	for _, inboundID := range req.InboundIDs {
-		err = a.rbacService.GrantInboundAccess(user.Id, inboundID)
+		err = a.rbacService.GrantInboundAccess(newUser.Id, inboundID)
 		if err != nil {
 			logger.Warning("Failed to grant access to inbound", inboundID, ":", err)
 		}
@@ -97,26 +100,25 @@ func (a *VendorController) createVendor(c *gin.Context) {
 	jsonObj(c, map[string]interface{}{
 		"success": true,
 		"message": "Vendor created successfully",
-		"vendorId": user.Id,
+		"vendorId": newUser.Id,
 	}, nil)
 }
 
 // listVendors returns all vendor accounts (admin only)
 func (a *VendorController) listVendors(c *gin.Context) {
 	// Check if user is admin
-	session := a.getSession(c)
-	if session == nil {
+	if !session.IsLogin(c) {
 		jsonMsg(c, "Unauthorized", nil)
 		return
 	}
 
-	userID := session.Get("id")
-	if userID == nil {
+	user := session.GetLoginUser(c)
+	if user == nil {
 		jsonMsg(c, "Invalid session", nil)
 		return
 	}
 
-	isAdmin, err := a.rbacService.IsAdmin(userID.(int))
+	isAdmin, err := a.rbacService.IsAdmin(user.Id)
 	if err != nil || !isAdmin {
 		jsonMsg(c, "Admin access required", nil)
 		return
@@ -169,19 +171,18 @@ func (a *VendorController) listVendors(c *gin.Context) {
 // grantAccess grants a vendor access to an inbound (admin only)
 func (a *VendorController) grantAccess(c *gin.Context) {
 	// Check if user is admin
-	session := a.getSession(c)
-	if session == nil {
+	if !session.IsLogin(c) {
 		jsonMsg(c, "Unauthorized", nil)
 		return
 	}
 
-	userID := session.Get("id")
-	if userID == nil {
+	user := session.GetLoginUser(c)
+	if user == nil {
 		jsonMsg(c, "Invalid session", nil)
 		return
 	}
 
-	isAdmin, err := a.rbacService.IsAdmin(userID.(int))
+	isAdmin, err := a.rbacService.IsAdmin(user.Id)
 	if err != nil || !isAdmin {
 		jsonMsg(c, "Admin access required", nil)
 		return
@@ -212,19 +213,18 @@ func (a *VendorController) grantAccess(c *gin.Context) {
 // revokeAccess revokes a vendor's access to an inbound (admin only)
 func (a *VendorController) revokeAccess(c *gin.Context) {
 	// Check if user is admin
-	session := a.getSession(c)
-	if session == nil {
+	if !session.IsLogin(c) {
 		jsonMsg(c, "Unauthorized", nil)
 		return
 	}
 
-	userID := session.Get("id")
-	if userID == nil {
+	user := session.GetLoginUser(c)
+	if user == nil {
 		jsonMsg(c, "Invalid session", nil)
 		return
 	}
 
-	isAdmin, err := a.rbacService.IsAdmin(userID.(int))
+	isAdmin, err := a.rbacService.IsAdmin(user.Id)
 	if err != nil || !isAdmin {
 		jsonMsg(c, "Admin access required", nil)
 		return
@@ -255,19 +255,18 @@ func (a *VendorController) revokeAccess(c *gin.Context) {
 // deleteVendor deletes a vendor account (admin only)
 func (a *VendorController) deleteVendor(c *gin.Context) {
 	// Check if user is admin
-	session := a.getSession(c)
-	if session == nil {
+	if !session.IsLogin(c) {
 		jsonMsg(c, "Unauthorized", nil)
 		return
 	}
 
-	userID := session.Get("id")
-	if userID == nil {
+	user := session.GetLoginUser(c)
+	if user == nil {
 		jsonMsg(c, "Invalid session", nil)
 		return
 	}
 
-	isAdmin, err := a.rbacService.IsAdmin(userID.(int))
+	isAdmin, err := a.rbacService.IsAdmin(user.Id)
 	if err != nil || !isAdmin {
 		jsonMsg(c, "Admin access required", nil)
 		return
@@ -303,19 +302,18 @@ func (a *VendorController) deleteVendor(c *gin.Context) {
 // getVendorInbounds returns all inbounds accessible by a vendor
 func (a *VendorController) getVendorInbounds(c *gin.Context) {
 	// Check if user is admin
-	session := a.getSession(c)
-	if session == nil {
+	if !session.IsLogin(c) {
 		jsonMsg(c, "Unauthorized", nil)
 		return
 	}
 
-	userID := session.Get("id")
-	if userID == nil {
+	user := session.GetLoginUser(c)
+	if user == nil {
 		jsonMsg(c, "Invalid session", nil)
 		return
 	}
 
-	isAdmin, err := a.rbacService.IsAdmin(userID.(int))
+	isAdmin, err := a.rbacService.IsAdmin(user.Id)
 	if err != nil || !isAdmin {
 		jsonMsg(c, "Admin access required", nil)
 		return
@@ -335,10 +333,4 @@ func (a *VendorController) getVendorInbounds(c *gin.Context) {
 	}
 
 	jsonObj(c, inbounds, nil)
-}
-
-// Helper function to get session
-func (a *VendorController) getSession(c *gin.Context) gin.H {
-	session := c.MustGet("session").(gin.H)
-	return session
 }
