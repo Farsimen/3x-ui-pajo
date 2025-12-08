@@ -1,57 +1,298 @@
-[English](/README.md) | [فارسی](/README.fa_IR.md) | [العربية](/README.ar_EG.md) |  [中文](/README.zh_CN.md) | [Español](/README.es_ES.md) | [Русский](/README.ru_RU.md)
+[English](/README.md) | [فارسی](/README.fa_IR.md) | [العربية](/README.ar_EG.md) | [中文](/README.zh_CN.md) | [Español](/README.es_ES.md) | [Русский](/README.ru_RU.md)
 
-<p align="center">
+<p align="center" dir="rtl">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="./media/3x-ui-dark.png">
-    <img alt="3x-ui" src="./media/3x-ui-light.png">
+    <img alt="3x-ui-pajo" src="./media/3x-ui-light.png">
   </picture>
 </p>
 
-[![Release](https://img.shields.io/github/v/release/mhsanaei/3x-ui.svg)](https://github.com/MHSanaei/3x-ui/releases)
-[![Build](https://img.shields.io/github/actions/workflow/status/mhsanaei/3x-ui/release.yml.svg)](https://github.com/MHSanaei/3x-ui/actions)
-[![GO Version](https://img.shields.io/github/go-mod/go-version/mhsanaei/3x-ui.svg)](#)
-[![Downloads](https://img.shields.io/github/downloads/mhsanaei/3x-ui/total.svg)](https://github.com/MHSanaei/3x-ui/releases/latest)
+<h1 align="center" dir="rtl">3X-UI پاجو - نسخه چند فروشنده</h1>
+
+<p align="center" dir="rtl">
+  <strong>پنل پیشرفته Xray با کنترل دسترسی مبتنی بر نقش برای چندین فروشنده</strong>
+</p>
+
+<div dir="rtl">
+
+[![Release](https://img.shields.io/github/v/release/Farsimen/3x-ui-pajo.svg)](https://github.com/Farsimen/3x-ui-pajo/releases)
+[![Build](https://img.shields.io/github/actions/workflow/status/Farsimen/3x-ui-pajo/release.yml.svg)](https://github.com/Farsimen/3x-ui-pajo/actions)
+[![GO Version](https://img.shields.io/github/go-mod/go-version/Farsimen/3x-ui-pajo.svg)](#)
 [![License](https://img.shields.io/badge/license-GPL%20V3-blue.svg?longCache=true)](https://www.gnu.org/licenses/gpl-3.0.en.html)
-[![Go Reference](https://pkg.go.dev/badge/github.com/mhsanaei/3x-ui/v2.svg)](https://pkg.go.dev/github.com/mhsanaei/3x-ui/v2)
-[![Go Report Card](https://goreportcard.com/badge/github.com/mhsanaei/3x-ui/v2)](https://goreportcard.com/report/github.com/mhsanaei/3x-ui/v2)
 
-**3X-UI** — یک پنل کنترل پیشرفته مبتنی بر وب با کد باز که برای مدیریت سرور Xray-core طراحی شده است. این پنل یک رابط کاربری آسان برای پیکربندی و نظارت بر پروتکل‌های مختلف VPN و پراکسی ارائه می‌دهد.
+---
 
-> [!IMPORTANT]
-> این پروژه فقط برای استفاده شخصی و ارتباطات است، لطفاً از آن برای اهداف غیرقانونی استفاده نکنید، لطفاً از آن در محیط تولید استفاده نکنید.
+## 🌟 ویژگی‌های جدید نسخه پاجو
 
-به عنوان یک نسخه بهبود یافته از پروژه اصلی X-UI، 3X-UI پایداری بهتر، پشتیبانی گسترده‌تر از پروتکل‌ها و ویژگی‌های اضافی را ارائه می‌دهد.
+این فورک **مدیریت چند فروشنده سازمانی** را به پنل قدرتمند 3x-ui اضافه می‌کند:
 
-## شروع سریع
+### 🔒 کنترل دسترسی مبتنی بر نقش (RBAC)
+- **نقش مدیر (Admin)**: کنترل کامل بر تنظیمات پنل، پیکربندی Xray و تمام inboundها
+- **نقش فروشنده (Vendor)**: دسترسی محدود به inboundهای اختصاصی با قابلیت مدیریت کاربر
+- سیستم مجوز امن با کنترل دسترسی پشتیبانی شده توسط دیتابیس
+
+### 👥 پشتیبانی از چندین فروشنده
+- ایجاد اکانت فروشنده بی‌محدود با دسترسی جداسازی شده
+- هر فروشنده فقط inboundهای اختصاصی خود را می‌بیند و مدیریت می‌کند
+- فروشندگان فقط می‌توانند کاربرانی را ایجاد، ویرایش و حذف کنند که خودشان ساخته‌اند
+- مدیر نظارت و کنترل کامل دارد
+
+### 🔐 امنیت پیشرفته
+- پیگیری مالکیت کاربر - فروشندگان فقط می‌توانند کاربران خود را تغییر دهند
+- محافظت مسیر با middleware
+- تخصیص خودکار نقش هنگام ساخت کاربر
+- جداسازی دیتا بین فروشندگان
+
+### 🎨 رابط کاربری ساده برای فروشندگان
+- رابط تمیز و شهودی برای فروشندگان
+- مخفی شدن ویژگی‌های مخصوص مدیر (تنظیمات پنل، پیکربندی Xray)
+- تمرکز روی ابزارهای ضروری مدیریت کاربر
+- تولید QR code و لینک کانفیگ
+
+---
+
+## 🚀 شروع سریع
+
+### نصب
+
+```bash
+bash <(curl -Ls https://raw.githubusercontent.com/Farsimen/3x-ui-pajo/rbac-implementation/install.sh)
+```
+
+### اطلاعات ورود پیش‌فرض
 
 ```
-bash <(curl -Ls https://raw.githubusercontent.com/mhsanaei/3x-ui/master/install.sh)
+نام کاربری: admin
+رمز عبور: admin
+پورت: 2053
 ```
 
-برای مستندات کامل، لطفاً به [ویکی پروژه](https://github.com/MHSanaei/3x-ui/wiki) مراجعه کنید.
+**⚠️ بلافاصله پس از اولین ورود، رمز پیش‌فرض را تغییر دهید!**
 
-## تشکر ویژه از
+---
 
-- [alireza0](https://github.com/alireza0/)
+## 📚 مستندات
 
-## قدردانی
+### برای مدیران
 
-- [Iran v2ray rules](https://github.com/chocolate4u/Iran-v2ray-rules) (مجوز: **GPL-3.0**): _قوانین مسیریابی بهبود یافته v2ray/xray و v2ray/xray-clients با دامنه‌های ایرانی داخلی و تمرکز بر امنیت و مسدود کردن تبلیغات._
-- [Russia v2ray rules](https://github.com/runetfreedom/russia-v2ray-rules-dat) (مجوز: **GPL-3.0**): _این مخزن شامل قوانین مسیریابی V2Ray به‌روزرسانی شده خودکار بر اساس داده‌های دامنه‌ها و آدرس‌های مسدود شده در روسیه است._
+#### ایجاد اکانت فروشنده
 
-## پشتیبانی از پروژه
+1. با نقش admin وارد شوید
+2. به بخش **مدیریت فروشندگان** بروید
+3. روی **ساخت فروشنده جدید** کلیک کنید
+4. نام کاربری و رمز عبور وارد کنید
+5. inboundهایی را که می‌خواهید اختصاص دهید انتخاب کنید
+6. روی **ساخت** کلیک کنید
 
-**اگر این پروژه برای شما مفید است، می‌توانید به آن یک**:star2: بدهید
+#### مدیریت دسترسی فروشندگان
 
-<a href="https://www.buymeacoffee.com/MHSanaei" target="_blank">
-<img src="./media/default-yellow.png" alt="Buy Me A Coffee" style="height: 70px !important;width: 277px !important;" >
-</a>
+- **اعطای دسترسی**: اختصاص inboundهای بیشتر به فروشندگان موجود
+- **لغو دسترسی**: حذف دسترسی inbound از فروشندگان
+- **مشاهده فروشندگان**: مشاهده تمام اکانت‌های فروشنده و inboundهای اختصاصی‌شان
 
-</br>
-<a href="https://nowpayments.io/donation/hsanaei" target="_blank" rel="noreferrer noopener">
-   <img src="./media/donation-button-black.svg" alt="Crypto donation button by NOWPayments">
-</a>
+### برای فروشندگان
 
-## ستاره‌ها در طول زمان
+#### فروشندگان چه کارهایی می‌توانند انجام دهند
 
-[![Stargazers over time](https://starchart.cc/MHSanaei/3x-ui.svg?variant=adaptive)](https://starchart.cc/MHSanaei/3x-ui) 
+✅ مشاهده inboundهای اختصاصی  
+✅ ساخت کاربران (کلاینت) جدید  
+✅ ویرایش کاربرانی که خودشان ساخته‌اند  
+✅ حذف کاربرانی که خودشان ساخته‌اند  
+✅ تولید لینک کانفیگ و QR code  
+✅ دریافت URLهای کاربر  
+✅ ساخت دسته‌ای کاربر  
+
+#### فروشندگان چه کارهایی نمی‌توانند انجام دهند
+
+❌ ساخت یا تغییر inbound  
+❌ دسترسی به تنظیمات پنل  
+❌ مشاهده پیکربندی Xray  
+❌ دیدن کاربران فروشندگان دیگر  
+❌ تغییر کاربرانی که admin یا فروشندگان دیگر ساخته‌اند  
+❌ مشاهده آمار سرور  
+
+---
+
+## 🛠️ جزئیات فنی
+
+### معماری
+
+```
+┌─────────────────────────────────┐
+│      دشبورد مدیر                │
+│  (دسترسی کامل + مدیریت      │
+│         فروشندگان)              │
+└───────────────┬─────────────────┘
+                │
+        ┌───────┼───────┐
+        │               │
+   ┌────┴────┐     ┌────┴────┐
+   │ فروشنده 1│     │ فروشنده 2│
+   │ Inbound A│     │ Inbound B│
+   │ Inbound C│     │ Inbound D│
+   └──────────┘     └──────────┘
+```
+
+### ساختار دیتابیس
+
+**جدول‌های جدید:**
+- `user_roles` - نقش کاربران (admin/vendor)
+- `inbound_access` - تعیین اینکه کدام فروشنده به کدام inbound دسترسی دارد
+- `client_ownership` - پیگیری سازنده هر کاربر
+
+### فناوری‌ها
+
+- **بک‌اند**: Go (Golang)
+- **دیتابیس**: SQLite با GORM
+- **فرانت‌اند**: HTML5, JavaScript, Bootstrap
+- **هسته**: Xray-core
+
+---
+
+## 💻 API Endpointها
+
+### مدیریت فروشندگان (فقط Admin)
+
+```bash
+# لیست تمام فروشندگان
+GET /api/vendor/list
+
+# ساخت فروشنده جدید
+POST /api/vendor/create
+{
+  "username": "vendor1",
+  "password": "securepass",
+  "inboundIds": [1, 2, 3]
+}
+
+# اعطای دسترسی inbound
+POST /api/vendor/grant
+{
+  "vendorId": 5,
+  "inboundId": 10
+}
+
+# لغو دسترسی inbound
+POST /api/vendor/revoke
+{
+  "vendorId": 5,
+  "inboundId": 10
+}
+```
+
+### اطلاعات نقش کاربر
+
+```bash
+# دریافت نقش کاربر فعلی
+GET /api/user/role
+```
+
+---
+
+## 🛡️ ویژگی‌های امنیتی
+
+### احراز هویت و مجوز
+- احراز هویت مبتنی بر Session
+- محافظت middleware مبتنی بر نقش
+- Hash کردن رمز با bcrypt
+
+### جداسازی دیتا
+- فروشندگان فقط به inboundهای اختصاصی خود دسترسی دارند
+- تأیید مالکیت کاربر در تمام عملیات ویرایش/حذف
+- کنترل دسترسی در سطح دیتابیس
+
+### محافظت UI
+- مخفی شدن دینامیک منو بر اساس نقش کاربر
+- غیرفعال شدن دکمه‌ها برای عملیات غیرمجاز
+- اعتبارسنجی سمت کلاینت و سرور
+
+---
+
+## 📝 تغییرات
+
+### v2.0.0-pajo (نسخه RBAC)
+
+**اضافه شده:**
+- ✅ سیستم کنترل دسترسی مبتنی بر نقش (RBAC)
+- ✅ پشتیبانی از چند فروشنده با دسترسی جداسازی شده
+- ✅ پیگیری مالکیت کاربر
+- ✅ رابط کاربری مدیریت فروشندگان
+- ✅ middleware امنیتی پیشرفته
+- ✅ مستندات جامع به فارسی و انگلیسی
+
+**تغییر کرده:**
+- 🔄 به‌روزرسانی ساختار دیتابیس با جدول‌های RBAC
+- 🔄 بهبود UI برای پشتیبانی از نمایش مبتنی بر نقش
+- 🔄 ارتقای API با بررسی مجوز
+
+---
+
+## 🤝 مشارکت
+
+مشارکت‌ها خوشآمد است! لطفاً قبل از ارسال PR راهنمای مشارکت را مطالعه کنید.
+
+### راه‌اندازی محیط توسعه
+
+```bash
+# کلون ریپازیتوری
+git clone https://github.com/Farsimen/3x-ui-pajo.git
+cd 3x-ui-pajo
+
+# سوئیچ به برنچ RBAC
+git checkout rbac-implementation
+
+# بیلد
+go build -o x-ui main.go
+
+# اجرا
+./x-ui
+```
+
+---
+
+## 💬 پشتیبانی و جامعه
+
+- **مشکلات**: [GitHub Issues](https://github.com/Farsimen/3x-ui-pajo/issues)
+- **مستندات**: [Wiki](https://github.com/Farsimen/3x-ui-pajo/wiki)
+- **پروژه اصلی**: [3x-ui by MHSanaei](https://github.com/MHSanaei/3x-ui)
+
+---
+
+## 📜 لایسنس
+
+این پروژه تحت لایسنس GPL V3 منتشر شده است.
+
+---
+
+## 🙏 قدردانی
+
+### مبتنی بر
+- [3x-ui](https://github.com/MHSanaei/3x-ui) توسط MHSanaei
+- [x-ui](https://github.com/vaxilu/x-ui) توسط vaxilu
+
+### تشکر ویژه
+- [alireza0](https://github.com/alireza0/) - توسعه‌دهنده اولیه X-UI
+- [MHSanaei](https://github.com/MHSanaei/) - نگهدارنده 3x-ui
+- تمام مشارکت‌کنندگان در پروژه‌های Xray و V2Ray
+
+---
+
+## ⚠️ سلب مسئولیت
+
+**این پروژه فقط برای استفاده شخصی و آموزشی است.**  
+از آن برای مقاصد غیرقانونی استفاده نکنید.  
+بدون بررسی امنیتی مناسب آن را در محیط تولید استفاده نکنید.
+
+توسعه‌دهندگان مسئولیتی در قبال سوءاستفاده از این نرم‌افزار ندارند.
+
+---
+
+<p align="center" dir="rtl">
+  ساخته شده با ❤️ برای جامعه
+</p>
+
+<p align="center">
+  <a href="#top">⬆️ بازگشت به بالا</a>
+</p>
+
+</div>
