@@ -16,15 +16,15 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mhsanaei/3x-ui/v2/config"
-	"github.com/mhsanaei/3x-ui/v2/logger"
-	"github.com/mhsanaei/3x-ui/v2/util/common"
-	"github.com/mhsanaei/3x-ui/v2/web/controller"
-	"github.com/mhsanaei/3x-ui/v2/web/job"
-	"github.com/mhsanaei/3x-ui/v2/web/locale"
-	"github.com/mhsanaei/3x-ui/v2/web/middleware"
-	"github.com/mhsanaei/3x-ui/v2/web/network"
-	"github.com/mhsanaei/3x-ui/v2/web/service"
+	"x-ui/config"
+	"x-ui/logger"
+	"x-ui/util/common"
+	"x-ui/web/controller"
+	"x-ui/web/job"
+	"x-ui/web/locale"
+	"x-ui/web/middleware"
+	"x-ui/web/network"
+	"x-ui/web/service"
 
 	"github.com/gin-contrib/gzip"
 	"github.com/gin-contrib/sessions"
@@ -95,9 +95,10 @@ type Server struct {
 	httpServer *http.Server
 	listener   net.Listener
 
-	index *controller.IndexController
-	panel *controller.XUIController
-	api   *controller.APIController
+	index  *controller.IndexController
+	panel  *controller.XUIController
+	api    *controller.APIController
+	vendor *controller.VendorController
 
 	xrayService    service.XrayService
 	settingService service.SettingService
@@ -265,6 +266,7 @@ func (s *Server) initRouter() (*gin.Engine, error) {
 	s.index = controller.NewIndexController(g)
 	s.panel = controller.NewXUIController(g)
 	s.api = controller.NewAPIController(g)
+	s.vendor = controller.NewVendorController(g)
 
 	// Chrome DevTools endpoint for debugging web apps
 	engine.GET("/.well-known/appspecific/com.chrome.devtools.json", func(c *gin.Context) {
