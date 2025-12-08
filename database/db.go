@@ -32,6 +32,8 @@ const (
 func initModels() error {
 	models := []any{
 		&model.User{},
+		&model.UserRole{},       // RBAC: User roles
+		&model.InboundAccess{},  // RBAC: Inbound access control
 		&model.Inbound{},
 		&model.OutboundTraffics{},
 		&model.Setting{},
@@ -67,7 +69,16 @@ func initUser() error {
 			Username: defaultUsername,
 			Password: hashedPassword,
 		}
-		return db.Create(user).Error
+		if err := db.Create(user).Error; err != nil {
+			return err
+		}
+
+		// Assign admin role to default user
+		userRole := &model.UserRole{
+			UserId: user.Id,
+			Role:   model.RoleAdmin,
+		}
+		return db.Create(userRole).Error
 	}
 	return nil
 }
@@ -84,7 +95,15 @@ func runSeeders(isUsersEmpty bool) error {
 		hashSeeder := &model.HistoryOfSeeders{
 			SeederName: "UserPasswordHash",
 		}
-		return db.Create(hashSeeder).Error
+		if err := db.Create(hashSeeder).Error; err != nil {
+			return err
+		}
+
+		// Mark RBAC seeder as done for new installations
+		rbacSeeder := &model.HistoryOfSeeders{
+			SeederName: "AssignAdminRoles",
+		}
+		return db.Create(rbacSeeder).Error
 	} else {
 		var seedersHistory []string
 		db.Model(&model.HistoryOfSeeders{}).Pluck("seeder_name", &seedersHistory)
@@ -105,7 +124,37 @@ func runSeeders(isUsersEmpty bool) error {
 			hashSeeder := &model.HistoryOfSeeders{
 				SeederName: "UserPasswordHash",
 			}
-			return db.Create(hashSeeder).Error
+			if err := db.Create(hashSeeder).Error; err != nil {
+				return err
+			}
+		}
+
+		// Assign admin role to existing users if not already assigned
+		if !slices.Contains(seedersHistory, "AssignAdminRoles") {
+			var users []model.User
+			db.Find(&users)
+
+			for _, user := range users {
+				// Check if user already has a role
+				var existingRole model.UserRole
+				if err := db.Where("user_id = ?", user.Id).First(&existingRole).Error; err != nil {
+					if IsNotFound(err) {
+						// User doesn't have a role, assign admin by default for existing users
+						userRole := &model.UserRole{
+							UserId: user.Id,
+							Role:   model.RoleAdmin,
+						}
+						if err := db.Create(userRole).Error; err != nil {
+							log.Printf("Error assigning admin role to user '%s': %v", user.Username, err)
+						}
+					}
+				}
+			}
+
+			rbacSeeder := &model.HistoryOfSeeders{
+				SeederName: "AssignAdminRoles",
+			}
+			return db.Create(rbacSeeder).Error
 		}
 	}
 
