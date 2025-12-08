@@ -4,25 +4,41 @@ red='\033[0;31m'
 green='\033[0;32m'
 blue='\033[0;34m'
 yellow='\033[0;33m'
+purple='\033[0;35m'
+cyan='\033[0;36m'
 plain='\033[0m'
 
 cur_dir=$(pwd)
 
-# check root
+# Banner
+print_banner() {
+    clear
+    echo -e "${purple}"
+    cat << "EOF"
+ ╔═══════════════════════════════════════════════════╗
+ ║                                                   ║
+ ║       3X-UI Pajo - Multi-Vendor Edition          ║
+ ║     Role-Based Access Control (RBAC) System      ║
+ ║                                                   ║
+ ╚═══════════════════════════════════════════════════╝
+EOF
+    echo -e "${plain}"
+}
+
+# Check root
 [[ $EUID -ne 0 ]] && echo -e "${red}Fatal error: ${plain} Please run this script with root privilege \n " && exit 1
 
 # Check OS and set release variable
 if [[ -f /etc/os-release ]]; then
     source /etc/os-release
     release=$ID
-    elif [[ -f /usr/lib/os-release ]]; then
+elif [[ -f /usr/lib/os-release ]]; then
     source /usr/lib/os-release
     release=$ID
 else
     echo "Failed to check the system OS, please contact the author!" >&2
     exit 1
 fi
-echo "The OS release is: $release"
 
 arch() {
     case "$(uname -m)" in
@@ -33,231 +49,366 @@ arch() {
         armv6* | armv6) echo 'armv6' ;;
         armv5* | armv5) echo 'armv5' ;;
         s390x) echo 's390x' ;;
-        *) echo -e "${green}Unsupported CPU architecture! ${plain}" && rm -f install.sh && exit 1 ;;
+        *) echo -e "${red}Unsupported CPU architecture! ${plain}" && exit 1 ;;
     esac
 }
 
-echo "Arch: $(arch)"
-
 install_base() {
+    echo -e "${cyan}📦 Installing base packages...${plain}"
     case "${release}" in
         ubuntu | debian | armbian)
-            apt-get update && apt-get install -y -q wget curl tar tzdata
+            apt-get update && apt-get install -y -q wget curl tar tzdata git golang-go
         ;;
         fedora | amzn | virtuozzo | rhel | almalinux | rocky | ol)
-            dnf -y update && dnf install -y -q wget curl tar tzdata
+            dnf -y update && dnf install -y -q wget curl tar tzdata git golang
         ;;
         centos)
             if [[ "${VERSION_ID}" =~ ^7 ]]; then
-                yum -y update && yum install -y wget curl tar tzdata
+                yum -y update && yum install -y wget curl tar tzdata git golang
             else
-                dnf -y update && dnf install -y -q wget curl tar tzdata
+                dnf -y update && dnf install -y -q wget curl tar tzdata git golang
             fi
         ;;
         arch | manjaro | parch)
-            pacman -Syu && pacman -Syu --noconfirm wget curl tar tzdata
+            pacman -Syu && pacman -Syu --noconfirm wget curl tar tzdata git go
         ;;
         opensuse-tumbleweed | opensuse-leap)
-            zypper refresh && zypper -q install -y wget curl tar timezone
+            zypper refresh && zypper -q install -y wget curl tar timezone git go
         ;;
         alpine)
-            apk update && apk add wget curl tar tzdata
+            apk update && apk add wget curl tar tzdata git go
         ;;
         *)
-            apt-get update && apt-get install -y -q wget curl tar tzdata
+            apt-get update && apt-get install -y -q wget curl tar tzdata git golang-go
         ;;
     esac
+    echo -e "${green}✓ Base packages installed${plain}"
 }
 
-gen_random_string() {
-    local length="$1"
-    local random_string=$(LC_ALL=C tr -dc 'a-zA-Z0-9' </dev/urandom | fold -w "$length" | head -n 1)
-    echo "$random_string"
-}
-
-config_after_install() {
-    local existing_hasDefaultCredential=$(/usr/local/x-ui/x-ui setting -show true | grep -Eo 'hasDefaultCredential: .+' | awk '{print $2}')
-    local existing_webBasePath=$(/usr/local/x-ui/x-ui setting -show true | grep -Eo 'webBasePath: .+' | awk '{print $2}')
-    local existing_port=$(/usr/local/x-ui/x-ui setting -show true | grep -Eo 'port: .+' | awk '{print $2}')
+get_server_ip() {
     local URL_lists=(
         "https://api4.ipify.org"
         "https://ipv4.icanhazip.com"
         "https://v4.api.ipinfo.io/ip"
-        "https://ipv4.myexternalip.com/raw"
-        "https://4.ident.me"
-        "https://check-host.net/ip"
     )
     local server_ip=""
     for ip_address in "${URL_lists[@]}"; do
         server_ip=$(curl -s --max-time 3 "${ip_address}" 2>/dev/null | tr -d '[:space:]')
         if [[ -n "${server_ip}" ]]; then
-            break
+            echo "${server_ip}"
+            return 0
         fi
     done
-    
-    if [[ ${#existing_webBasePath} -lt 4 ]]; then
-        if [[ "$existing_hasDefaultCredential" == "true" ]]; then
-            local config_webBasePath=$(gen_random_string 18)
-            local config_username=$(gen_random_string 10)
-            local config_password=$(gen_random_string 10)
-            
-            read -rp "Would you like to customize the Panel Port settings? (If not, a random port will be applied) [y/n]: " config_confirm
-            if [[ "${config_confirm}" == "y" || "${config_confirm}" == "Y" ]]; then
-                read -rp "Please set up the panel port: " config_port
-                echo -e "${yellow}Your Panel Port is: ${config_port}${plain}"
-            else
-                local config_port=$(shuf -i 1024-62000 -n 1)
-                echo -e "${yellow}Generated random port: ${config_port}${plain}"
-            fi
-            
-            /usr/local/x-ui/x-ui setting -username "${config_username}" -password "${config_password}" -port "${config_port}" -webBasePath "${config_webBasePath}"
-            echo -e "This is a fresh installation, generating random login info for security concerns:"
-            echo -e "###############################################"
-            echo -e "${green}Username: ${config_username}${plain}"
-            echo -e "${green}Password: ${config_password}${plain}"
-            echo -e "${green}Port: ${config_port}${plain}"
-            echo -e "${green}WebBasePath: ${config_webBasePath}${plain}"
-            echo -e "${green}Access URL: http://${server_ip}:${config_port}/${config_webBasePath}${plain}"
-            echo -e "###############################################"
-        else
-            local config_webBasePath=$(gen_random_string 18)
-            echo -e "${yellow}WebBasePath is missing or too short. Generating a new one...${plain}"
-            /usr/local/x-ui/x-ui setting -webBasePath "${config_webBasePath}"
-            echo -e "${green}New WebBasePath: ${config_webBasePath}${plain}"
-            echo -e "${green}Access URL: http://${server_ip}:${existing_port}/${config_webBasePath}${plain}"
-        fi
-    else
-        if [[ "$existing_hasDefaultCredential" == "true" ]]; then
-            local config_username=$(gen_random_string 10)
-            local config_password=$(gen_random_string 10)
-            
-            echo -e "${yellow}Default credentials detected. Security update required...${plain}"
-            /usr/local/x-ui/x-ui setting -username "${config_username}" -password "${config_password}"
-            echo -e "Generated new random login credentials:"
-            echo -e "###############################################"
-            echo -e "${green}Username: ${config_username}${plain}"
-            echo -e "${green}Password: ${config_password}${plain}"
-            echo -e "###############################################"
-        else
-            echo -e "${green}Username, Password, and WebBasePath are properly set. Exiting...${plain}"
-        fi
-    fi
-    
-    /usr/local/x-ui/x-ui migrate
+    echo "YOUR_SERVER_IP"
 }
 
-install_x-ui() {
-    cd /usr/local/
+interactive_config() {
+    print_banner
+    echo -e "${cyan}╔═══════════════════════════════════════════════════╗${plain}"
+    echo -e "${cyan}║           Interactive Setup Wizard                ║${plain}"
+    echo -e "${cyan}╚═══════════════════════════════════════════════════╝${plain}"
+    echo ""
     
-    # Download resources
-    if [ $# == 0 ]; then
-        tag_version=$(curl -Ls "https://api.github.com/repos/MHSanaei/3x-ui/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
-        if [[ ! -n "$tag_version" ]]; then
-            echo -e "${yellow}Trying to fetch version with IPv4...${plain}"
-            tag_version=$(curl -4 -Ls "https://api.github.com/repos/MHSanaei/3x-ui/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
-            if [[ ! -n "$tag_version" ]]; then
-                echo -e "${red}Failed to fetch x-ui version, it may be due to GitHub API restrictions, please try it later${plain}"
-                exit 1
-            fi
+    # Panel Port
+    echo -e "${yellow}┌─ Panel Port${plain}"
+    while true; do
+        read -rp "$(echo -e "${yellow}└─> Enter port [1-65535] (Default: 2053): ${plain}")" config_port
+        config_port=${config_port:-2053}
+        if [[ "$config_port" =~ ^[0-9]+$ ]] && [ "$config_port" -ge 1 ] && [ "$config_port" -le 65535 ]; then
+            echo -e "${green}    ✓ Port set to: ${config_port}${plain}"
+            break
+        else
+            echo -e "${red}    ✗ Invalid port. Please enter 1-65535${plain}"
         fi
-        echo -e "Got x-ui latest version: ${tag_version}, beginning the installation..."
-        wget --inet4-only -N -O /usr/local/x-ui-linux-$(arch).tar.gz https://github.com/MHSanaei/3x-ui/releases/download/${tag_version}/x-ui-linux-$(arch).tar.gz
-        if [[ $? -ne 0 ]]; then
-            echo -e "${red}Downloading x-ui failed, please be sure that your server can access GitHub ${plain}"
-            exit 1
+    done
+    echo ""
+    
+    # Admin Username
+    echo -e "${yellow}┌─ Admin Username${plain}"
+    while true; do
+        read -rp "$(echo -e "${yellow}└─> Enter username (min 3 chars): ${plain}")" config_username
+        if [[ -z "$config_username" ]]; then
+            echo -e "${red}    ✗ Username cannot be empty${plain}"
+            continue
         fi
-    else
-        tag_version=$1
-        tag_version_numeric=${tag_version#v}
-        min_version="2.3.5"
-        
-        if [[ "$(printf '%s\n' "$min_version" "$tag_version_numeric" | sort -V | head -n1)" != "$min_version" ]]; then
-            echo -e "${red}Please use a newer version (at least v2.3.5). Exiting installation.${plain}"
-            exit 1
+        if [[ ${#config_username} -ge 3 ]]; then
+            echo -e "${green}    ✓ Username: ${config_username}${plain}"
+            break
+        else
+            echo -e "${red}    ✗ Username too short (min 3 characters)${plain}"
         fi
-        
-        url="https://github.com/MHSanaei/3x-ui/releases/download/${tag_version}/x-ui-linux-$(arch).tar.gz"
-        echo -e "Beginning to install x-ui $1"
-        wget --inet4-only -N -O /usr/local/x-ui-linux-$(arch).tar.gz ${url}
-        if [[ $? -ne 0 ]]; then
-            echo -e "${red}Download x-ui $1 failed, please check if the version exists ${plain}"
-            exit 1
+    done
+    echo ""
+    
+    # Admin Password
+    echo -e "${yellow}┌─ Admin Password${plain}"
+    while true; do
+        read -rsp "$(echo -e "${yellow}└─> Enter password (min 4 chars): ${plain}")" config_password
+        echo ""
+        if [[ -z "$config_password" ]]; then
+            echo -e "${red}    ✗ Password cannot be empty${plain}"
+            continue
         fi
+        if [[ ${#config_password} -ge 4 ]]; then
+            echo -e "${green}    ✓ Password set (hidden)${plain}"
+            break
+        else
+            echo -e "${red}    ✗ Password too short (min 4 characters)${plain}"
+        fi
+    done
+    echo ""
+    
+    # Installation Path
+    echo -e "${yellow}┌─ Installation Path${plain}"
+    read -rp "$(echo -e "${yellow}└─> Enter path (Default: /usr/local/x-ui): ${plain}")" install_path
+    install_path=${install_path:-/usr/local/x-ui}
+    echo -e "${green}    ✓ Path: ${install_path}${plain}"
+    echo ""
+    
+    # Confirmation
+    echo -e "${cyan}╔═══════════════════════════════════════════════════╗${plain}"
+    echo -e "${cyan}║           Configuration Summary                   ║${plain}"
+    echo -e "${cyan}╚═══════════════════════════════════════════════════╝${plain}"
+    echo -e "${blue}  Port:${plain}      ${green}${config_port}${plain}"
+    echo -e "${blue}  Username:${plain}  ${green}${config_username}${plain}"
+    echo -e "${blue}  Password:${plain}  ${green}$(echo ${config_password} | sed 's/./*/g')${plain}"
+    echo -e "${blue}  Path:${plain}      ${green}${install_path}${plain}"
+    echo ""
+    
+    read -rp "$(echo -e "${yellow}Continue with installation? [Y/n]: ${plain}")" confirm
+    confirm=${confirm:-Y}
+    if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
+        echo -e "${red}✗ Installation cancelled${plain}"
+        exit 0
     fi
-    wget --inet4-only -O /usr/bin/x-ui-temp https://raw.githubusercontent.com/MHSanaei/3x-ui/main/x-ui.sh
+    echo ""
+}
+
+install_x-ui_pajo() {
+    echo -e "${cyan}╔═══════════════════════════════════════════════════╗${plain}"
+    echo -e "${cyan}║         Installing 3X-UI Pajo RBAC Edition        ║${plain}"
+    echo -e "${cyan}╚═══════════════════════════════════════════════════╝${plain}"
+    echo ""
+    
+    # Stop existing service
+    if systemctl is-active --quiet x-ui 2>/dev/null; then
+        echo -e "${yellow}⚠  Stopping existing x-ui service...${plain}"
+        systemctl stop x-ui
+    fi
+    
+    # Create installation directory
+    echo -e "${cyan}📁 Creating installation directory...${plain}"
+    mkdir -p "${install_path}"
+    cd "${install_path}" || exit 1
+    
+    # Backup existing installation
+    if [[ -f "x-ui" ]]; then
+        echo -e "${yellow}📦 Backing up existing installation...${plain}"
+        cp x-ui x-ui.backup.$(date +%Y%m%d_%H%M%S) 2>/dev/null || true
+    fi
+    
+    # Clone repository
+    echo -e "${cyan}⬇️  Downloading from GitHub...${plain}"
+    if [[ -d ".git" ]]; then
+        rm -rf .git
+    fi
+    
+    rm -rf temp_clone 2>/dev/null || true
+    git clone --depth 1 -b rbac-implementation https://github.com/Farsimen/3x-ui-pajo.git temp_clone
     if [[ $? -ne 0 ]]; then
-        echo -e "${red}Failed to download x-ui.sh${plain}"
+        echo -e "${red}✗ Failed to clone repository${plain}"
+        echo -e "${yellow}  Please check your internet connection and try again${plain}"
         exit 1
     fi
     
-    # Stop x-ui service and remove old resources
-    if [[ -e /usr/local/x-ui/ ]]; then
-        if [[ $release == "alpine" ]]; then
-            rc-service x-ui stop
-        else
-            systemctl stop x-ui
-        fi
-        rm /usr/local/x-ui/ -rf
+    # Move files
+    echo -e "${cyan}📋 Extracting files...${plain}"
+    cp -r temp_clone/* . 2>/dev/null || true
+    cp -r temp_clone/.github . 2>/dev/null || true
+    rm -rf temp_clone
+    
+    # Build
+    echo -e "${cyan}🔨 Building application (this may take a few minutes)...${plain}"
+    export GO111MODULE=on
+    go mod download
+    go build -ldflags="-s -w" -o x-ui main.go
+    if [[ $? -ne 0 ]]; then
+        echo -e "${red}✗ Build failed${plain}"
+        echo -e "${yellow}  Please check Go installation: go version${plain}"
+        exit 1
     fi
     
-    # Extract resources and set permissions
-    tar zxvf x-ui-linux-$(arch).tar.gz
-    rm x-ui-linux-$(arch).tar.gz -f
-    
-    cd x-ui
     chmod +x x-ui
-    chmod +x x-ui.sh
+    chmod +x x-ui.sh 2>/dev/null || true
     
-    # Check the system's architecture and rename the file accordingly
-    if [[ $(arch) == "armv5" || $(arch) == "armv6" || $(arch) == "armv7" ]]; then
-        mv bin/xray-linux-$(arch) bin/xray-linux-arm
-        chmod +x bin/xray-linux-arm
+    # Set permissions for bin directory
+    if [[ -d "bin" ]]; then
+        chmod +x bin/* 2>/dev/null || true
     fi
-    chmod +x x-ui bin/xray-linux-$(arch)
     
-    # Update x-ui cli and se set permission
-    mv -f /usr/bin/x-ui-temp /usr/bin/x-ui
+    echo -e "${green}✓ Build completed successfully${plain}"
+    
+    # Configure panel
+    echo -e "${cyan}⚙️  Configuring panel settings...${plain}"
+    ./x-ui setting -username "${config_username}" -password "${config_password}" -port "${config_port}" 2>/dev/null || true
+    
+    # Install CLI tool
+    echo -e "${cyan}🔧 Installing CLI tool...${plain}"
+    cp -f x-ui.sh /usr/bin/x-ui 2>/dev/null || cat > /usr/bin/x-ui << 'EOFCLI'
+#!/bin/bash
+/usr/local/x-ui/x-ui "$@"
+EOFCLI
     chmod +x /usr/bin/x-ui
-    config_after_install
     
-    if [[ $release == "alpine" ]]; then
-        wget --inet4-only -O /etc/init.d/x-ui https://raw.githubusercontent.com/MHSanaei/3x-ui/main/x-ui.rc
-        if [[ $? -ne 0 ]]; then
-            echo -e "${red}Failed to download x-ui.rc${plain}"
-            exit 1
-        fi
-        chmod +x /etc/init.d/x-ui
-        rc-update add x-ui
-        rc-service x-ui start
+    # Create systemd service
+    echo -e "${cyan}🔧 Creating systemd service...${plain}"
+    cat > /etc/systemd/system/x-ui.service <<EOF
+[Unit]
+Description=3X-UI Pajo - Multi-Vendor Xray Panel with RBAC
+Documentation=https://github.com/Farsimen/3x-ui-pajo
+After=network.target nss-lookup.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=${install_path}
+ExecStart=${install_path}/x-ui
+Restart=on-failure
+RestartSec=5s
+LimitNOFILE=1048576
+
+[Install]
+WantedBy=multi-user.target
+EOF
+    
+    # Reload and start service
+    echo -e "${cyan}🚀 Starting service...${plain}"
+    systemctl daemon-reload
+    systemctl enable x-ui >/dev/null 2>&1
+    systemctl restart x-ui
+    
+    # Wait for service to start
+    sleep 3
+    
+    if systemctl is-active --quiet x-ui; then
+        echo -e "${green}✓ Service started successfully!${plain}"
     else
-        cp -f x-ui.service /etc/systemd/system/
-        systemctl daemon-reload
-        systemctl enable x-ui
-        systemctl start x-ui
+        echo -e "${yellow}⚠  Service may not have started. Check: journalctl -u x-ui -n 50${plain}"
     fi
     
-    echo -e "${green}x-ui ${tag_version}${plain} installation finished, it is running now..."
-    echo -e ""
-    echo -e "┌───────────────────────────────────────────────────────┐
-│  ${blue}x-ui control menu usages (subcommands):${plain}              │
-│                                                       │
-│  ${blue}x-ui${plain}              - Admin Management Script          │
-│  ${blue}x-ui start${plain}        - Start                            │
-│  ${blue}x-ui stop${plain}         - Stop                             │
-│  ${blue}x-ui restart${plain}      - Restart                          │
-│  ${blue}x-ui status${plain}       - Current Status                   │
-│  ${blue}x-ui settings${plain}     - Current Settings                 │
-│  ${blue}x-ui enable${plain}       - Enable Autostart on OS Startup   │
-│  ${blue}x-ui disable${plain}      - Disable Autostart on OS Startup  │
-│  ${blue}x-ui log${plain}          - Check logs                       │
-│  ${blue}x-ui banlog${plain}       - Check Fail2ban ban logs          │
-│  ${blue}x-ui update${plain}       - Update                           │
-│  ${blue}x-ui legacy${plain}       - Legacy version                   │
-│  ${blue}x-ui install${plain}      - Install                          │
-│  ${blue}x-ui uninstall${plain}    - Uninstall                        │
-└───────────────────────────────────────────────────────┘"
+    echo ""
 }
 
-echo -e "${green}Running...${plain}"
-install_base
-install_x-ui $1
+show_access_info() {
+    local server_ip=$(get_server_ip)
+    
+    clear
+    print_banner
+    
+    echo -e "${green}"
+    cat << "EOF"
+ ╔═══════════════════════════════════════════════════╗
+ ║                                                   ║
+ ║       ✨ Installation Completed Successfully! ✨   ║
+ ║                                                   ║
+ ╚═══════════════════════════════════════════════════╝
+EOF
+    echo -e "${plain}"
+    echo ""
+    
+    echo -e "${cyan}╔═══════════════════════════════════════════════════╗${plain}"
+    echo -e "${cyan}║              🌐 Access Information                ║${plain}"
+    echo -e "${cyan}╚═══════════════════════════════════════════════════╝${plain}"
+    echo ""
+    echo -e "  ${yellow}📡 Panel URL (HTTP):${plain}"
+    echo -e "     ${green}http://${server_ip}:${config_port}${plain}"
+    echo ""
+    echo -e "  ${yellow}🔒 Panel URL (HTTPS):${plain}"
+    echo -e "     ${green}https://${server_ip}:${config_port}${plain}"
+    echo ""
+    echo -e "  ${yellow}👤 Admin Username:${plain}"
+    echo -e "     ${green}${config_username}${plain}"
+    echo ""
+    echo -e "  ${yellow}🔑 Admin Password:${plain}"
+    echo -e "     ${green}${config_password}${plain}"
+    echo ""
+    echo -e "  ${yellow}📂 Installation Path:${plain}"
+    echo -e "     ${green}${install_path}${plain}"
+    echo ""
+    
+    echo -e "${cyan}╔═══════════════════════════════════════════════════╗${plain}"
+    echo -e "${cyan}║              ⭐ RBAC Features Enabled             ║${plain}"
+    echo -e "${cyan}╚═══════════════════════════════════════════════════╝${plain}"
+    echo ""
+    echo -e "  ${green}✓${plain} Role-Based Access Control"
+    echo -e "  ${green}✓${plain} Multi-Vendor Support (up to 50+ vendors)"
+    echo -e "  ${green}✓${plain} Client Ownership Tracking"
+    echo -e "  ${green}✓${plain} Isolated Vendor Dashboard"
+    echo -e "  ${green}✓${plain} Admin Vendor Management"
+    echo ""
+    
+    echo -e "${cyan}╔═══════════════════════════════════════════════════╗${plain}"
+    echo -e "${cyan}║              📚 Useful Commands                   ║${plain}"
+    echo -e "${cyan}╚═══════════════════════════════════════════════════╝${plain}"
+    echo ""
+    echo -e "  ${blue}x-ui${plain}                 - Open control menu"
+    echo -e "  ${blue}x-ui start${plain}           - Start panel service"
+    echo -e "  ${blue}x-ui stop${plain}            - Stop panel service"
+    echo -e "  ${blue}x-ui restart${plain}         - Restart panel service"
+    echo -e "  ${blue}x-ui status${plain}          - Check service status"
+    echo -e "  ${blue}x-ui log${plain}             - View panel logs"
+    echo -e "  ${blue}systemctl status x-ui${plain} - Detailed service status"
+    echo ""
+    
+    echo -e "${cyan}╔═══════════════════════════════════════════════════╗${plain}"
+    echo -e "${cyan}║              ⚠️  Important Security Notes          ║${plain}"
+    echo -e "${cyan}╚═══════════════════════════════════════════════════╝${plain}"
+    echo ""
+    echo -e "  ${yellow}1.${plain} Change your password after first login"
+    echo -e "  ${yellow}2.${plain} Configure firewall: ${green}ufw allow ${config_port}/tcp${plain}"
+    echo -e "  ${yellow}3.${plain} Enable HTTPS with SSL certificate in panel settings"
+    echo -e "  ${yellow}4.${plain} Keep your system and panel updated regularly"
+    echo ""
+    
+    echo -e "${cyan}╔═══════════════════════════════════════════════════╗${plain}"
+    echo -e "${cyan}║              📖 Documentation & Support           ║${plain}"
+    echo -e "${cyan}╚═══════════════════════════════════════════════════╝${plain}"
+    echo ""
+    echo -e "  ${purple}🌐 GitHub:${plain}"
+    echo -e "     ${blue}https://github.com/Farsimen/3x-ui-pajo${plain}"
+    echo ""
+    echo -e "  ${purple}📚 Documentation:${plain}"
+    echo -e "     ${blue}https://github.com/Farsimen/3x-ui-pajo/tree/rbac-implementation${plain}"
+    echo ""
+    echo -e "  ${purple}📋 Guide:${plain}"
+    echo -e "     ${blue}- IMPLEMENTATION_STEPS.md (Persian/English)${plain}"
+    echo -e "     ${blue}- VENDOR_PERMISSIONS.md${plain}"
+    echo ""
+    
+    echo -e "${green}═════════════════════════════════════════════════════${plain}"
+    echo -e "         ${purple}Made with ❤️  by Farsimen for the community${plain}"
+    echo -e "${green}═════════════════════════════════════════════════════${plain}"
+    echo ""
+    
+    echo -e "${yellow}💡 Tip: Save this information in a secure place!${plain}"
+    echo ""
+}
+
+# Main execution
+main() {
+    print_banner
+    echo -e "${cyan}Checking system requirements...${plain}"
+    echo -e "${green}✓ OS: ${release}${plain}"
+    echo -e "${green}✓ Architecture: $(arch)${plain}"
+    echo ""
+    sleep 1
+    
+    install_base
+    echo ""
+    interactive_config
+    install_x-ui_pajo
+    show_access_info
+}
+
+# Run
+main
