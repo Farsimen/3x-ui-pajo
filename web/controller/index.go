@@ -5,9 +5,9 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/mhsanaei/3x-ui/v2/logger"
-	"github.com/mhsanaei/3x-ui/v2/web/service"
-	"github.com/mhsanaei/3x-ui/v2/web/session"
+	"x-ui/logger"
+	"x-ui/web/service"
+	"x-ui/web/session"
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
@@ -26,6 +26,7 @@ type IndexController struct {
 
 	settingService service.SettingService
 	userService    service.UserService
+	rbacService    service.RBACService
 	tgbot          service.Tgbot
 }
 
@@ -43,6 +44,7 @@ func (a *IndexController) initRouter(g *gin.RouterGroup) {
 
 	g.POST("/login", a.login)
 	g.POST("/getTwoFactorEnable", a.getTwoFactorEnable)
+	g.POST("/getUserRole", a.getUserRole)
 }
 
 // index handles the root route, redirecting logged-in users to the panel or showing the login page.
@@ -121,4 +123,55 @@ func (a *IndexController) getTwoFactorEnable(c *gin.Context) {
 	if err == nil {
 		jsonObj(c, status, nil)
 	}
+}
+
+// getUserRole retrieves the current user's role
+func (a *IndexController) getUserRole(c *gin.Context) {
+	if !session.IsLogin(c) {
+		pureJsonMsg(c, http.StatusUnauthorized, false, "Unauthorized")
+		return
+	}
+
+	user := session.GetLoginUser(c)
+	if user == nil {
+		pureJsonMsg(c, http.StatusUnauthorized, false, "Unauthorized")
+		return
+	}
+
+	// Check if user is admin
+	isAdmin, err := a.rbacService.IsAdmin(user.Id)
+	if err != nil {
+		logger.Warning("Error checking admin role: ", err)
+	}
+
+	// Check if user is vendor
+	isVendor, err := a.rbacService.IsVendor(user.Id)
+	if err != nil {
+		logger.Warning("Error checking vendor role: ", err)
+	}
+
+	var role string
+	var inbounds []int
+
+	if isAdmin {
+		role = "admin"
+	} else if isVendor {
+		role = "vendor"
+		// Get vendor's accessible inbounds
+		inbounds, err = a.rbacService.GetUserInbounds(user.Id)
+		if err != nil {
+			logger.Warning("Error getting vendor inbounds: ", err)
+			inbounds = []int{}
+		}
+	} else {
+		role = "user"
+	}
+
+	jsonObj(c, gin.H{
+		"role":     role,
+		"isAdmin":  isAdmin,
+		"isVendor": isVendor,
+		"inbounds": inbounds,
+		"username": user.Username,
+	}, nil)
 }
