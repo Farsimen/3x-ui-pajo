@@ -160,8 +160,18 @@ interactive_config() {
     
     # Installation Path
     echo -e "${yellow}┌─ Installation Path${plain}"
-    read -rp "$(echo -e "${yellow}└─> Enter path (Default: /usr/local/x-ui): ${plain}")" install_path
-    install_path=${install_path:-/usr/local/x-ui}
+    read -rp "$(echo -e "${yellow}└─> Enter path (Default: /usr/local/x-ui): ${plain}")" install_path_input
+    install_path_input=${install_path_input:-/usr/local/x-ui}
+    
+    # Convert to absolute path
+    if [[ "${install_path_input:0:1}" != "/" ]]; then
+        # Relative path, convert to absolute
+        install_path="/root/${install_path_input}"
+        echo -e "${yellow}    ⚠  Relative path detected, using: ${install_path}${plain}"
+    else
+        install_path="${install_path_input}"
+    fi
+    
     echo -e "${green}    ✓ Path: ${install_path}${plain}"
     echo ""
     
@@ -254,9 +264,9 @@ install_x-ui_pajo() {
     
     # Install CLI tool
     echo -e "${cyan}🔧 Installing CLI tool...${plain}"
-    cp -f x-ui.sh /usr/bin/x-ui 2>/dev/null || cat > /usr/bin/x-ui << 'EOFCLI'
+    cp -f x-ui.sh /usr/bin/x-ui 2>/dev/null || cat > /usr/bin/x-ui <<EOFCLI
 #!/bin/bash
-/usr/local/x-ui/x-ui "$@"
+${install_path}/x-ui "\$@"
 EOFCLI
     chmod +x /usr/bin/x-ui
     
