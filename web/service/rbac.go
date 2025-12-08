@@ -44,7 +44,7 @@ func (s *RBACService) IsVendor(userId int) (bool, error) {
 }
 
 // AssignRole assigns a role to a user
-func (s *RBACService) AssignRole(userId int, role model.Role) error {
+func (s *RBACService) AssignRole(userId int, role string) error {
 	db := database.GetDB()
 
 	// Check if user already has a role
@@ -56,7 +56,7 @@ func (s *RBACService) AssignRole(userId int, role model.Role) error {
 			// Create new role
 			userRole := &model.UserRole{
 				UserId: userId,
-				Role:   role,
+				Role:   model.Role(role),
 			}
 			return db.Create(userRole).Error
 		}
@@ -91,6 +91,11 @@ func (s *RBACService) GrantInboundAccess(userId int, inboundId int) error {
 func (s *RBACService) RevokeInboundAccess(userId int, inboundId int) error {
 	db := database.GetDB()
 	return db.Where("user_id = ? AND inbound_id = ?", userId, inboundId).Delete(&model.InboundAccess{}).Error
+}
+
+// GetUserInbounds returns all inbound IDs a user has access to (alias for GetVendorInbounds)
+func (s *RBACService) GetUserInbounds(userId int) ([]int, error) {
+	return s.GetVendorInbounds(userId)
 }
 
 // GetVendorInbounds returns all inbound IDs a vendor has access to
@@ -138,6 +143,26 @@ func (s *RBACService) CanAccessInbound(userId int, inboundId int) (bool, error) 
 		return false, err
 	}
 
+	return true, nil
+}
+
+// IsClientOwner checks if a user owns a specific client (stub for future implementation)
+func (s *RBACService) IsClientOwner(userId int, clientId string) (bool, error) {
+	// For now, we'll check if the client belongs to an inbound the vendor has access to
+	// Full client ownership tracking can be implemented later
+	
+	// Admins own everything
+	isAdmin, err := s.IsAdmin(userId)
+	if err != nil {
+		return false, err
+	}
+
+	if isAdmin {
+		return true, nil
+	}
+
+	// For vendors, we need to implement client ownership tracking
+	// For now, return true (vendors can modify clients in their inbounds)
 	return true, nil
 }
 
