@@ -1,0 +1,145 @@
+<script>
+$(document).ready(function() {
+    loadVendors();
+    loadInbounds();
+
+    $('#btn-create-vendor').click(function() {
+        $('#modal-create-vendor').modal('show');
+    });
+
+    $('#btn-submit-vendor').click(function() {
+        createVendor();
+    });
+
+    function loadVendors() {
+        $.ajax({
+            url: '{{ .base_path }}vendor/list',
+            method: 'GET',
+            success: function(data) {
+                displayVendors(data.obj || data || []);
+            },
+            error: function(xhr) {
+                alert('Failed to load vendors: ' + xhr.responseText);
+            }
+        });
+    }
+
+    function displayVendors(vendors) {
+        const tbody = $('#vendors-tbody');
+        tbody.empty();
+
+        if (!Array.isArray(vendors)) {
+            return;
+        }
+
+        vendors.forEach(function(vendor) {
+            const inbounds = vendor.inbounds && vendor.inbounds.length > 0 
+                ? vendor.inbounds.join(', ') 
+                : 'None';
+            const row = `
+                <tr>
+                    <td>${vendor.id}</td>
+                    <td>${vendor.username}</td>
+                    <td><span class="badge badge-info">${vendor.role}</span></td>
+                    <td>${inbounds}</td>
+                    <td>
+                        <button class="btn btn-sm btn-warning" onclick="manageAccess(${vendor.id})">
+                            <i class="fas fa-key"></i> Manage Access
+                        </button>
+                        <button class="btn btn-sm btn-danger" onclick="deleteVendor(${vendor.id})">
+                            <i class="fas fa-trash"></i> Delete
+                        </button>
+                    </td>
+                </tr>
+            `;
+            tbody.append(row);
+        });
+
+        if (vendors.length === 0) {
+            tbody.append('<tr><td colspan="5" class="text-center">No vendors found</td></tr>');
+        }
+    }
+
+    function loadInbounds() {
+        $.ajax({
+            url: '{{ .base_path }}panel/api/inbounds/list',
+            method: 'GET',
+            success: function(data) {
+                const select = $('#vendor-inbounds');
+                select.empty();
+                
+                const inbounds = data.obj || [];
+                if (Array.isArray(inbounds)) {
+                    inbounds.forEach(function(inbound) {
+                        select.append(`<option value="${inbound.id}">${inbound.remark || 'Inbound'} (${inbound.protocol})</option>`);
+                    });
+                }
+            },
+            error: function(xhr) {
+                console.error('Failed to load inbounds:', xhr.responseText);
+            }
+        });
+    }
+
+    function createVendor() {
+        const username = $('#vendor-username').val().trim();
+        const password = $('#vendor-password').val();
+        const selectedInbounds = $('#vendor-inbounds').val() || [];
+
+        if (!username || !password) {
+            alert('Username and password are required');
+            return;
+        }
+
+        const data = {
+            username: username,
+            password: password,
+            inboundIds: selectedInbounds.map(id => parseInt(id))
+        };
+
+        $.ajax({
+            url: '{{ .base_path }}vendor/create',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify(data),
+            success: function(response) {
+                $('#modal-create-vendor').modal('hide');
+                $('#form-create-vendor')[0].reset();
+                alert('Vendor created successfully');
+                loadVendors();
+            },
+            error: function(xhr) {
+                try {
+                    const err = JSON.parse(xhr.responseText);
+                    alert('Failed to create vendor: ' + (err.msg || xhr.responseText));
+                } catch(e) {
+                    alert('Failed to create vendor: ' + xhr.responseText);
+                }
+            }
+        });
+    }
+
+    window.deleteVendor = function(vendorId) {
+        if (!confirm('Are you sure you want to delete this vendor?')) {
+            return;
+        }
+
+        $.ajax({
+            url: '{{ .base_path }}vendor/delete/' + vendorId,
+            method: 'DELETE',
+            success: function() {
+                alert('Vendor deleted successfully');
+                loadVendors();
+            },
+            error: function(xhr) {
+                alert('Failed to delete vendor: ' + xhr.responseText);
+            }
+        });
+    };
+
+    window.manageAccess = function(vendorId) {
+        // TODO: Implement manage access modal
+        alert('Manage access for vendor ' + vendorId + ' - Coming soon!');
+    };
+});
+</script>
