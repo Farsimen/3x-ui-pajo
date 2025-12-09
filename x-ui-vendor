@@ -1,0 +1,132 @@
+#!/bin/bash
+
+DB="/etc/x-ui/x-ui.db"
+
+case "$1" in
+  add)
+    if [ -z "$2" ] || [ -z "$3" ]; then
+      echo "Usage: x-ui-vendor add <username> <password> [inbound_ids]"
+      exit 1
+    fi
+    
+    USERNAME="$2"
+    PASSWORD="$3"
+    INBOUNDS="${4:-}"
+    
+    # Hash password with bcrypt-compatible format
+    HASHED=$(python3 -c "import bcrypt; print(bcrypt.hashpw(b'$PASSWORD', bcrypt.gensalt()).decode())" 2>/dev/null)
+    if [ -z "$HASHED" ]; then
+      echo "Installing bcrypt..."
+      pip3 install -q bcrypt
+      HASHED=$(python3 -c "import bcrypt; print(bcrypt.hashpw(b'$PASSWORD', bcrypt.gensalt()).decode())")
+    fi
+    
+    # Add user
+    sqlite3 $DB "INSERT INTO users (username, password) VALUES ('$USERNAME', '$HASHED');"
+    USER_ID=$(sqlite3 $DB "SELECT id FROM users WHERE username='$USERNAME';")
+    
+    # Add vendor role
+    sqlite3 $DB "INSERT INTO user_roles (user_id, role) VALUES ($USER_ID, 'vendor');"
+    
+    # Add inbound access
+    if [ -n "$INBOUNDS" ]; then
+      IFS=',' read -ra IDS <<< "$INBOUNDS"
+      for id in "${IDS[@]}"; do
+        sqlite3 $DB "INSERT INTO inbound_access (user_id, inbound_id) VALUES ($USER_ID, $id);"
+      done
+    fi
+    
+    echo "✅ Vendor '$USERNAME' created!"
+    echo "   Username: $USERNAME"
+    echo "   Password: $PASSWORD"
+    echo "   Inbounds: ${INBOUNDS:-none}"
+    ;;
+    
+  list)
+    echo "📋 Vendors List:"
+    sqlite3 -header -column $DB "
+      SELECT u.id, u.username, ur.role, GROUP_CONCAT(ia.inbound_id) as inbounds
+      FROM users u
+      JOIN user_roles ur ON u.id = ur.user_id
+      LEFT JOIN inbound_access ia ON u.id = ia.user_id
+      WHERE ur.role = 'vendor'
+      GROUP BY u.id;
+    "
+    ;;
+    
+  delete)
+    if [ -z "$2" ]; then
+      echo "Usage: x-ui-vendor delete <username>"
+      exit 1
+    fi
+    
+    USERNAME="$2"
+    USER_ID=$(sqlite3 $DB "SELECT id FROM users WHERE username='$USERNAME';")
+    
+    if [ -z "$USER_ID" ]; then
+      echo "❌ Vendor not found"
+      exit 1
+    fi
+    
+    sqlite3 $DB "DELETE FROM inbound_access WHERE user_id=$USER_ID;"
+    sqlite3 $DB "DELETE FROM user_roles WHERE user_id=$USER_ID;"
+    sqlite3 $DB "DELETE FROM users WHERE id=$USER_ID;"
+    
+    echo "✅ Vendor '$USERNAME' deleted"
+    ;;
+    
+  grant)
+    if [ -z "$2" ] || [ -z "$3" ]; then
+      echo "Usage: x-ui-vendor grant <username> <inbound_id>"
+      exit 1
+    fi
+    
+    USERNAME="$2"
+    INBOUND_ID="$3"
+    USER_ID=$(sqlite3 $DB "SELECT id FROM users WHERE username='$USERNAME';")
+    
+    if [ -z "$USER_ID" ]; then
+      echo "❌ Vendor not found"
+      exit 1
+    fi
+    
+    sqlite3 $DB "INSERT OR IGNORE INTO inbound_access (user_id, inbound_id) VALUES ($USER_ID, $INBOUND_ID);"
+    echo "✅ Access granted to inbound $INBOUND_ID"
+    ;;
+    
+  revoke)
+    if [ -z "$2" ] || [ -z "$3" ]; then
+      echo "Usage: x-ui-vendor revoke <username> <inbound_id>"
+      exit 1
+    fi
+    
+    USERNAME="$2"
+    INBOUND_ID="$3"
+    USER_ID=$(sqlite3 $DB "SELECT id FROM users WHERE username='$USERNAME';")
+    
+    if [ -z "$USER_ID" ]; then
+      echo "❌ Vendor not found"
+      exit 1
+    fi
+    
+    sqlite3 $DB "DELETE FROM inbound_access WHERE user_id=$USER_ID AND inbound_id=$INBOUND_ID;"
+    echo "✅ Access revoked from inbound $INBOUND_ID"
+    ;;
+    
+  *)
+    echo "Vendor Management CLI"
+    echo ""
+    echo "Usage:"
+    echo "  x-ui-vendor add <username> <password> [inbound_ids]"
+    echo "  x-ui-vendor list"
+    echo "  x-ui-vendor delete <username>"
+    echo "  x-ui-vendor grant <username> <inbound_id>"
+    echo "  x-ui-vendor revoke <username> <inbound_id>"
+    echo ""
+    echo "Examples:"
+    echo "  x-ui-vendor add seller1 pass123 1,2,3"
+    echo "  x-ui-vendor list"
+    echo "  x-ui-vendor grant seller1 4"
+    echo "  x-ui-vendor delete seller1"
+    ;;
+esac
